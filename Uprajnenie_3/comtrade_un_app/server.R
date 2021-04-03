@@ -7,10 +7,9 @@ library('lattice')
 library('zoo')
 library('lubridate')
 
-df <- read.csv('un_comtrade_2.csv', header = TRUE, sep = ',')
-#URL <- 
+URL <- 'https://raw.githubusercontent.com/Spbrly/R/main/Uprajnenie_3/data/un_comtrade_2.csv'
 
-#df <- read.csv(URL, fileEncoding = 'UTF-8')
+df <- read.csv(URL)
 
 df <- data.table(df)
 
