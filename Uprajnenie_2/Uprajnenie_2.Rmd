@@ -1,0 +1,298 @@
+---
+title: "Упражнение №2"
+author: "Ткачук Руслан"
+date: "03 04 2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Вариант 18
+
+Упражнение выполняется по вариантам. В каждом варианте необходимо построить два графика  средствами  указанной  графической  системы  и  сохранить  их  в  формат png. Результат  выполнения  упражнения –скрипт  с  расширением .Rmdс  кодом  на  языке RMarkdown, который описывает все этапы построения графика, от загрузки данных до записи графика, а также два графических файла. Файлы скрипта и графики разместить в репозитории на github.com, ссылку выслать на почту преподавателя. Номер варианта –номер в списке группы.
+
+Первый график постройте на данных по импорту продовольственных товаров в РФ в графической  системе ggplot2.  Данные  за  период  с  января  2010  по  декабрь  2020  гг. необходимо загрузить из базы данных международной торговли UN COMTRADE, как было показано  в  практиках  1-2.  Нас  интересует  эффект  от  введения  продовольственных санкций.
+
+Второй график постройте на данных, собранных в упражнении No1, в графической системе lattice.  Тип  графика  может  быть  любым,  при  этом  обязательно  должна присутствовать разбивка по категориям (например: годы, производители товара, жанры фильмов).
+
+Варианты для первого графика:
+Товар: мясо, субпродукты домашней птицы, код 0207. График: коробчатые диаграммы разброса суммарной стоимости поставок по фактору «вхождение страны-поставщика в объединение»: 1) СНГ без Белоруссии и Казахстана; 2) Таможенный союз России, Белоруссии, Казахстана; 3) другие страны. Фактор показать цветом. Разбить график на фасетки по периодам: с января по август 2010 года, с января по август 2014 года, с января по август 2019 года, с января по август 2020 года. Пропуски заменить на средние.
+
+```{r}
+# функция, реализующая API (источник: UN COMTRADE)
+
+# Библиотека для работы с JSON
+library('rjson')
+# Адрес справочника по странам UN COMTRADE
+fileURL <- "http://comtrade.un.org/data/cache/partnerAreas.json"
+#Загрузка данных из формата JSON
+reporters <- fromJSON(file = fileURL)
+is.list(reporters)
+
+# Соединяем элементы списка построчно
+reporters <- t(sapply(reporters$results, rbind))
+dim(reporters)
+
+# Превращаем в DataFrame
+reporters <- as.data.frame(reporters)
+head(reporters)
+
+# Код России
+names(reporters) <- c('State.Code', 'State.Name.En')
+code <- reporters[reporters$State.Name.En == "Russian Federation", ]$State.Code
+
+# Загружаем функцию реализации API
+source("https://raw.githubusercontent.com/aksyuk/R-data/master/API/comtrade_API.R")
+
+data.dir <- './data'
+
+# Создаем директорию для данных
+if (!file.exists(data.dir)) {
+  dir.create(data.dir)
+}
+
+# Код продукции: 0207
+code_product <- '0207'
+for (i in 2010:2020){
+  Sys.sleep(5)
+  s1 <- get.Comtrade(r = 'all', p = code,
+                     ps = as.character(i), freq = "M",
+                     rg = '1', cc = code_product,
+                     fmt = 'csv')
+  # Имя файла для сохранения
+  file.name <- paste('./data/comtrade_', i, '.csv', sep = '')
+  # Запись данных в файл
+  write.csv(s1$data, file.name, row.names = F)
+  print(paste("Данные за", i, "год загружены в файл",file.name, "!"))
+  write(paste('Файл',
+              paste('comtrade_', i, '.csv', sep = ''),
+              'загржен', Sys.time()), file = './data/download.log', append=T)
+}
+```
+
+```{r}
+library('stringr')
+library('ggplot2')
+library('gridExtra')
+
+# СНГ без Белоруссии и Казахстана
+CIS <- c('Armenia', 'Kyrgyzstan', 'Azerbaijan', 'Rep. of Moldova', 'Tajikistan', 'Turkmenistan', 'Uzbekistan', 'Ukraine')
+# Таможенный союз России, Белоруссии и Казахстана
+customs_union <- c('Russian Federation', 'Belarus', 'Kazakhstan')
+
+df <- data.frame()
+for (year in 2010:2020){
+  # Считываем данные из .csv файла
+  new.df <- read.csv(paste('./data/comtrade_', year, '.csv', sep=''), header = TRUE, sep=',')
+  new.df <- new.df[, c(2, 4, 10, 32)]
+  # Заполняем основной дата фрейм
+  df <- rbind(df, new.df)
+}
+
+# янв-авг 2010 год
+df.1 <- data.frame(Year = numeric(), Period.Desc.=character(),
+                   Reporter = character(), Trade.Value..US.. = numeric())
+for (m in month.name[1:8]){
+  df.1 <- rbind(df.1, df[df$Year==2010 & str_detect(df$Period.Desc., m), ])
+}
+# янв-авг 2014 год
+df.2 <- data.frame(Year = numeric(), Period.Desc.=character(),
+                   Reporter = character(), Trade.Value..US.. = numeric())
+for (m in month.name[1:8]){
+  df.2 <- rbind(df.1, df[df$Year==2014 & str_detect(df$Period.Desc., m), ])
+}
+# янв-авг 2019 год
+df.3 <- data.frame(Year = numeric(), Period.Desc.=character(),
+                   Reporter = character(), Trade.Value..US.. = numeric())
+for (m in month.name[1:8]){
+  df.3 <- rbind(df.1, df[df$Year==2019 & str_detect(df$Period.Desc., m), ])
+}
+# янв-авг 2020 год
+df.4 <- data.frame(Year = numeric(), Period.Desc.=character(),
+                   Reporter = character(), Trade.Value..US.. = numeric())
+for (m in month.name[1:8]){
+  df.4 <- rbind(df.1, df[df$Year==2020 & str_detect(df$Period.Desc., m), ])
+}
+
+
+# янв-авг 2010
+group.1 <- data.frame(Group = character(), Sum.US = numeric())
+try(group.1 <- rbind(group.1, data.frame(Group = "СНГ без Белоруссии и Казахстана",
+                                         Sum.US = df.1[df.1$Reporter %in% CIS, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2010')))
+try(group.1 <- rbind(group.1, data.frame(Group = "Таможенный союз Рус, Каз, Бел",
+                                         Sum.US = df.1[df.1$Reporter %in% customs_union, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2010')))
+try(group.1 <- rbind(group.1, data.frame(Group = "Остальные страны",
+                                         Sum.US = df.1[!(df.1$Reporter %in% customs_union) & !(df.1$Reporter %in% CIS), ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2010')))
+
+#янв-авг 2014
+group.2 <- data.frame(Group = character(), Sum.US = numeric())
+try(group.2 <- rbind(group.2, data.frame(Group = "СНГ без Белоруссии и Казахстана",
+                                         Sum.US = df.2[df.2$Reporter %in% CIS, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2014')))
+try(group.2 <- rbind(group.2, data.frame(Group = "Таможенный союз Рус, Каз, Бел",
+                                         Sum.US = df.2[df.2$Reporter %in% customs_union, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2014')))
+try(group.2 <- rbind(group.2, data.frame(Group = "Остальные страны",
+                                         Sum.US = df.2[!(df.2$Reporter %in% customs_union) & !(df.2$Reporter %in% CIS), ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2014')))
+
+# янв-авг 2019
+group.3 <- data.frame(Group = character(), Sum.US = numeric())
+try(group.3 <- rbind(group.3, data.frame(Group = "СНГ без Белоруссии и Казахстана",
+                                         Sum.US = df.3[df.3$Reporter %in% CIS, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2019')))
+try(group.3 <- rbind(group.3, data.frame(Group = "Таможенный союз Рус, Каз, Бел",
+                                         Sum.US = df.3[df.3$Reporter %in% customs_union, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2019')))
+try(group.3 <- rbind(group.3, data.frame(Group = "Остальные страны",
+                                         Sum.US = df.3[!(df.3$Reporter %in% customs_union) & !(df.3$Reporter %in% CIS), ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2019')))
+# янв-авг 2020
+group.4 <- data.frame(Group = character(), Sum.US = numeric())
+try(group.4 <- rbind(group.4, data.frame(Group = "СНГ без Белоруссии и Казахстана",
+                                         Sum.US = df.4[df.4$Reporter %in% CIS, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2020')))
+try(group.4 <- rbind(group.4, data.frame(Group = "Таможенный союз Рус, Каз, Бел",
+                                         Sum.US = df.4[df.4$Reporter %in% customs_union, ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2020')))
+try(group.4 <- rbind(group.4, data.frame(Group = "Остальные страны",
+                                         Sum.US = df.4[!(df.4$Reporter %in% customs_union) & !(df.4$Reporter %in% CIS), ]$Trade.Value..US..,
+                                         Period = 'янв-авг 2020')))
+
+groups <- rbind(group.1, group.2, group.3, group.4)
+groups
+
+# Строим график и сохраняем его в директорию, где расположен скрипт
+png('graf_1.png', width=1000, height=1000)
+ggplot(data=groups, aes(x = Sum.US, y = Group, group = Group, color = Group)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ Period, scale = 'free', space = 'free') +
+  coord_flip() +
+  scale_color_manual(values = c('red', 'green', 'blue'),
+                     name = 'Страны-поставщики') +
+  labs(title = 'Коробчатые диаграммы разброса суммарной стоимости поставок по фактору "вхождение страны-поставщика в объединение"',
+       x = 'Сумма стоимости поставок', y = 'Период')
+dev.off()
+```
+
+```{r}
+library('XML')                 # разбор XML-файлов
+library('RCurl')               # работа с HTML-страницами
+library('rjson')               # чтение формата JSON
+library('rvest')               # работа с DOM сайта
+library('dplyr')               # инструменты трансформирования данных
+library('httr')
+library('stringr')
+
+# Ссылка на сайт Лабиринт (комиксы, манга, артбуки)
+url <- 'https://www.labirint.ru/genres/2993/'
+
+html <- GET(url)
+html <- content(html, 'text')
+
+parsedHTML <- htmlParse(html, useInternalNodes = TRUE, encoding = 'UTF-8')
+# парсим названия книг
+book_name <- xpathSApply(parsedHTML, '//span[@class="product-title"]', xmlValue)
+book_name <- trimws(book_name, which = 'both', whitespace = '[ \t\r\n]')
+# Оставляем только те, что после заголовка "Все в жанре Комиксы, Манга, Артбуки"
+book_name <- book_name[15:74]
+book_name
+
+# парсим цену книг
+book_price <- xpathSApply(parsedHTML, '//span[@class="price-val"]', xmlValue)
+# Избавляемся от лишних знаков, кириллицы
+Encoding(book_price) <- "UTF-8"
+book_price <- iconv(book_price, 'latin1', 'ASCII', sub = "")
+book_price <- trimws(book_price, which = 'both', whitespace = '[ \t\r\n]')
+book_price <- book_price[15:74]
+# Избавляемся от пробелов
+book_price <- gsub(pattern = '\\s', replacement = "", x = book_price)
+book_price <- as.numeric(book_price)
+book_price
+
+
+book_pubhouse <- xpathSApply(parsedHTML, '//a[@class="product-pubhouse__pubhouse"]', xmlValue)
+book_pubhouse <- book_pubhouse[15:74]
+book_pubhouse
+
+book_pubhouse_series <- xpathSApply(parsedHTML, '//div[@class="product-pubhouse"]', xmlValue)
+book_pubhouse_series <- book_pubhouse_series[15:74]
+
+book_pubhouse_series_array <- array()
+for (book in strsplit(as.character(book_pubhouse_series), '\n')){
+  #print(length(book))
+  if(length(book) > 5){
+    series <- book[4]
+    series <- trimws(series, which = 'both', whitespace = '[ \t\r\n]')
+    book_pubhouse_series_array <- append(book_pubhouse_series_array, series)
+  }else{
+    book_pubhouse_series_array <- append(book_pubhouse_series_array, NA)
+  }
+}
+
+book_pubhouse_series <- book_pubhouse_series_array[2:61]
+book_pubhouse_series
+
+# Парсим количество фото
+book_photo <- xpathSApply(parsedHTML, '//div[@class="product-cover__cover-wrapper"]', xmlValue)
+book_photo <- book_photo[15:74]
+#book_photo
+
+book_photo_array <- array()
+for(book in book_photo){
+  if(str_detect(book, 'фото')){
+    photo <- strsplit(as.character(book), ' фото')[[1]][1]
+    count_photo <- strsplit(as.character(photo), '\n')[[1]]
+    len.photo <- length(count_photo)
+    count_photo <- count_photo[len.photo]
+    count_photo <- trimws(count_photo, which = 'both', whitespace = '[ \t\r\n]')
+    count_photo <- as.numeric(count_photo)
+    book_photo_array <- append(book_photo_array, count_photo)
+  }else{
+    book_photo_array <- append(book_photo_array, NA)
+  }
+}
+book_photo <- book_photo_array[2:61]
+book_photo
+
+# Оформляем все в дата фрейм
+DF <- data.frame(Name_book = book_name, Pubhouse = book_pubhouse,
+                 Pubhouse_series = book_pubhouse_series,
+                 Price = book_price, Count_photo = book_photo)
+
+data.dir <- './data'
+
+# Создаем директорию для данных
+if (!file.exists(data.dir)) {
+  dir.create(data.dir)
+}
+
+# Создаём файл с логом загрузок
+log.filename <- './data/download.log'
+if (!file.exists(log.filename)) file.create(log.filename)
+
+# Загружаем данные в .csv файл
+write.csv(DF, file = './data/labirint.csv', row.names = FALSE)
+write(paste('Файл "labirint.csv" записан!', Sys.time()), file = log.filename, append = TRUE)
+```
+
+```{r}
+library('lattice')
+
+# Загружаем данные из файла
+df <- read.csv('./data/labirint.csv', header = TRUE, sep = ',')
+df
+
+# Строим график
+png('graf_2.png', width=1000, height=1000)
+densityplot( ~ Price | as.factor(Pubhouse), data = df,
+            main = 'Распределение цены книг по издателям',
+            xlab = 'Цена, Руб.',
+            ylab = 'Плотность распределения')
+dev.off()
+```
