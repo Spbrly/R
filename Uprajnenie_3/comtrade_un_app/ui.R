@@ -1,11 +1,9 @@
 library('shiny')
 library('RCurl')
 
-df <- read.csv('./un_comtrade_2.csv', header = TRUE, sep = ',')
+URL <- 'https://raw.githubusercontent.com/Spbrly/R/main/Uprajnenie_3/data/un_comtrade_2.csv'
 
-#URL <- 
-
-#df <- read.csv(URL, fileEncoding = 'UTF-8')
+df <- read.csv(URL)
 
 # Торговые потоки, переменная для фильтра фрейма
 trade.flow <- as.character(unique(df$Trade.Flow))
