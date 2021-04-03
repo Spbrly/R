@@ -1,0 +1,118 @@
+---
+title: "Упражнение №1"
+author: "Ткачук Руслан"
+date: "20 03 2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Вариант 18
+
+С помощью пакета rvestили парсинга XMLс помощью xpath запросов соберите данные с сайта согласно своему варианту. В итоговой таблице должно быть не менее 50 записей и не менее 5 признаков, из которых как минимум два количественных. Снабдите файл справочником в формате Markdown.
+Результаты: .csv-файл с данными, .md-файл со справочником и .Rmd-файл с кодом загрузки данных разместить в репозитории github, ссылку на репозиторий прислать на почту преподавателя. Файл .Rmdдолжен содержать постановку задачи и комментарии по ходу сбора данных.
+
+18.Лабиринт, комиксы, манга, артбуки (https://www.labirint.ru/genres/2993/).
+
+```{r}
+library('XML')                 # разбор XML-файлов
+library('RCurl')               # работа с HTML-страницами
+library('rjson')               # чтение формата JSON
+library('rvest')               # работа с DOM сайта
+library('dplyr')               # инструменты трансформирования данных
+library('httr')
+library('stringr')
+
+# Ссылка на сайт Лабиринт (комиксы, манга, артбуки)
+url <- 'https://www.labirint.ru/genres/2993/'
+
+html <- GET(url)
+html <- content(html, 'text')
+
+parsedHTML <- htmlParse(html, useInternalNodes = TRUE, encoding = 'UTF-8')
+# парсим названия книг
+book_name <- xpathSApply(parsedHTML, '//span[@class="product-title"]', xmlValue)
+book_name <- trimws(book_name, which = 'both', whitespace = '[ \t\r\n]')
+# Оставляем только те, что после заголовка "Все в жанре Комиксы, Манга, Артбуки"
+book_name <- book_name[15:74]
+book_name
+
+# парсим цену книг
+book_price <- xpathSApply(parsedHTML, '//span[@class="price-val"]', xmlValue)
+# Избавляемся от лишних знаков, кириллицы
+Encoding(book_price) <- "UTF-8"
+book_price <- iconv(book_price, 'latin1', 'ASCII', sub = "")
+book_price <- trimws(book_price, which = 'both', whitespace = '[ \t\r\n]')
+book_price <- book_price[15:74]
+# Избавляемся от пробелов
+book_price <- gsub(pattern = '\\s', replacement = "", x = book_price)
+book_price <- as.numeric(book_price)
+book_price
+
+
+book_pubhouse <- xpathSApply(parsedHTML, '//a[@class="product-pubhouse__pubhouse"]', xmlValue)
+book_pubhouse <- book_pubhouse[15:74]
+book_pubhouse
+
+book_pubhouse_series <- xpathSApply(parsedHTML, '//div[@class="product-pubhouse"]', xmlValue)
+book_pubhouse_series <- book_pubhouse_series[15:74]
+
+book_pubhouse_series_array <- array()
+for (book in strsplit(as.character(book_pubhouse_series), '\n')){
+  #print(length(book))
+  if(length(book) > 5){
+    series <- book[4]
+    series <- trimws(series, which = 'both', whitespace = '[ \t\r\n]')
+    book_pubhouse_series_array <- append(book_pubhouse_series_array, series)
+  }else{
+    book_pubhouse_series_array <- append(book_pubhouse_series_array, NA)
+  }
+}
+
+book_pubhouse_series <- book_pubhouse_series_array[2:61]
+book_pubhouse_series
+
+# Парсим количество фото
+book_photo <- xpathSApply(parsedHTML, '//div[@class="product-cover__cover-wrapper"]', xmlValue)
+book_photo <- book_photo[15:74]
+#book_photo
+
+book_photo_array <- array()
+for(book in book_photo){
+  if(str_detect(book, 'фото')){
+    photo <- strsplit(as.character(book), ' фото')[[1]][1]
+    count_photo <- strsplit(as.character(photo), '\n')[[1]]
+    len.photo <- length(count_photo)
+    count_photo <- count_photo[len.photo]
+    count_photo <- trimws(count_photo, which = 'both', whitespace = '[ \t\r\n]')
+    count_photo <- as.numeric(count_photo)
+    book_photo_array <- append(book_photo_array, count_photo)
+  }else{
+    book_photo_array <- append(book_photo_array, NA)
+  }
+}
+book_photo <- book_photo_array[2:61]
+book_photo
+
+# Оформляем все в дата фрейм
+DF <- data.frame(Name_book = book_name, Pubhouse = book_pubhouse,
+                 Pubhouse_series = book_pubhouse_series,
+                 Price = book_price, Count_photo = book_photo)
+
+data.dir <- './data'
+
+# Создаем директорию для данных
+if (!file.exists(data.dir)) {
+  dir.create(data.dir)
+}
+
+# Создаём файл с логом загрузок
+log.filename <- './data/download.log'
+if (!file.exists(log.filename)) file.create(log.filename)
+
+# Загружаем данные в .csv файл
+write.csv(DF, file = './data/labirint.csv', row.names = FALSE)
+write(paste('Файл "labirint.csv" записан!', Sys.time()), file = log.filename, append = TRUE)
+```
