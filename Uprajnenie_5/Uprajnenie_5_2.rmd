@@ -1,0 +1,56 @@
+---
+title: "Упражнение 5"
+author: "Ткачук Руслан"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Вариант 18
+
+Создать .Rmd скрипт, который генерирует html-отчёт с двумя картами:
+
+1. Картограмма с таблицей стран мира по показателю из базы Всемирного банка (интерактивная картограмма из примера).
+2. Карта с маркерами или с радиусами, построенная по набору данных с Портала открытых данных РФ.
+
+Данные для карт можно загружать из своего репозитория на github.com. Код загрузки данных  с  помощью  API  предоставлять  необязательно,  но  если  выкладываете  его  на github.com,  не  забудьте  заново  сгенерировать  ключи  API,  чтобы  никто  не  мог воспользоваться вашим логином.
+
+WDI: любой показатель из раздела "Social Protection & Labor" (Социальная защита и труд). Портал открытых данных: Перечень учреждений дошкольного образования, расположенных на территории поселка Пурпе (id: 8911021440-obrazovanie)
+
+Показатель с сайта WDI: en: Unemployment, female(% of female labor force)(modeled ILO estimate)
+ru: Безработица, женщины (% женской рабочей силы) (смоделированная оценка МОТ)
+
+
+## Построение карты с маркерами на основе данных с портала открытых данных РФ
+
+```{r, results='asis', message=F, warning=F}
+library(leaflet)
+fileURL <-'./data/child.png'
+pharm.icon <- makeIcon(iconUrl = fileURL,
+                      iconWidth = 31,
+                      iconHeight = 31,
+                      iconAnchorX = 31,
+                      iconAnchorY = 31)
+
+fileURL <- './data/yandex_maps.csv'
+doc <- read.csv2(fileURL, stringsAsFactors = F)
+
+doc$lat <- as.numeric(doc$lat)
+doc$long <- as.numeric(doc$long)
+
+# Подпись к объектам
+map.sites <- paste0(doc$name, '</br>',
+                    doc$FIO, '</br>',
+                    '<em>', doc$phone, '</em>','</br>',
+                    '<em>', doc$email, '</em>')
+
+# Создаем виджет с картой
+myMap <- doc %>% leaflet(width =800, height =800) %>%
+  addTiles() %>% addMarkers(icon = pharm.icon, popup = map.sites)
+
+myMap
+```
